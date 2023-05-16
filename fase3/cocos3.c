@@ -69,7 +69,8 @@
 #include <stdio.h>     /* incloure definicions de funcions estandard */
 #include <stdlib.h>    /* per exit() */
 #include <unistd.h>    /* per getpid() */
-#include "winsuport.h" /* incloure definicions de funcions propies */
+#include "../librerias/winsuport2.h"	 /* incloure definicions de funcions propies */
+#include "../librerias/memoria.h"
 
 
 
@@ -102,9 +103,9 @@ int dc[] = {0, -1, 0, 1};	/* dalt, esquerra, baix, dreta */
 int cocos;			/* numero restant de cocos per menjar */
 int retard;		    /* valor del retard de moviment, en mil.lisegons */
 
+int fi1 = 0, fi2 = 0;
 
-
-
+pthread_t tid[1];  
 /* funcio per realitzar la carrega dels parametres de joc emmagatzemats */
 /* dins d'un fitxer de text, el nom del qual es passa per referencia a  */
 /* 'nom_fit'; si es detecta algun problema, la funcio avorta l'execucio */
@@ -237,84 +238,117 @@ void *mou_menjacocos(void *null)
   char strin[12];
   objecte seg;
   int tec, ret;
-  
+
   ret = 0;
-  tec = win_gettec();
-  if (tec != 0)
-   switch (tec)		/* modificar direccio menjacocos segons tecla */
-   {
-    case TEC_AMUNT:	  mc.d = 0; break;
-    case TEC_ESQUER:  mc.d = 1; break;
-    case TEC_AVALL:	  mc.d = 2; break;
-    case TEC_DRETA:	  mc.d = 3; break;
-    case TEC_RETURN:  ret = -1; break;
-   }
-  seg.f = mc.f + df[mc.d];	/* calcular seguent posicio */
-  seg.c = mc.c + dc[mc.d];
-  seg.a = win_quincar(seg.f,seg.c);	/* calcular caracter seguent posicio */
-  if ((seg.a == ' ') || (seg.a == '.'))
-  {
-    win_escricar(mc.f,mc.c,' ',NO_INV);		/* esborra posicio anterior */
-    mc.f = seg.f; mc.c = seg.c;			/* actualitza posicio */
-    win_escricar(mc.f,mc.c,'0',NO_INV);		/* redibuixa menjacocos */
-    if (seg.a == '.')
+
+  do {
+    win_retard(retard);
+    tec = win_gettec();   //hem afegit el retard perque vagi mes lent
+    if (tec != 0)
+      switch (tec) /* modificar direccio menjacocos segons tecla */
+      {
+      case TEC_AMUNT:
+        mc.d = 0;
+        break;
+      case TEC_ESQUER:
+        mc.d = 1;
+        break;
+      case TEC_AVALL:
+        mc.d = 2;
+        break;
+      case TEC_DRETA:
+        mc.d = 3;
+        break;
+      case TEC_RETURN:
+        ret = -1;
+        break;
+      }
+    seg.f = mc.f + df[mc.d]; /* calcular seguent posicio */
+    seg.c = mc.c + dc[mc.d];
+    seg.a = win_quincar(seg.f, seg.c); /* calcular caracter seguent posicio */
+    if ((seg.a == ' ') || (seg.a == '.'))
     {
-	cocos--;
-	sprintf(strin,"Cocos: %d", cocos); win_escristr(strin);
-	if (cocos == 0) ret = 1;
+      win_escricar(mc.f, mc.c, ' ', NO_INV); /* esborra posicio anterior */
+      mc.f = seg.f;
+      mc.c = seg.c;                                 /* actualitza posicio */
+      win_escricar(mc.f, mc.c, '0', NO_INV); /* redibuixa menjacocos */
+      if (seg.a == '.')
+      {
+        cocos--;
+        sprintf(strin, "Cocos: %d", cocos);
+        win_escristr(strin);
+        if (cocos == 0)
+          fi1 = 1;
+      }
     }
-  }
-  return(ret);
+  }while(!fi1 && !fi2);
+  
+  return 0;
 }
 
 
 /* programa principal				    */
 int main(int n_args, const char *ll_args[])
 {
-  int fi1, fi2, rc, p;		/* variables locals */
+   int rc, p; /* variables locals */
 
-  srand(getpid());		/* inicialitza numeros aleatoris */
+  srand(getpid()); /* inicialitza numeros aleatoris */
 
-  if ((n_args != 2) && (n_args !=3))
-  {	fprintf(stderr,"Comanda: cocos0 fit_param [retard]\n");
-  	exit(1);
+  if ((n_args != 2) && (n_args != 3))
+  {
+    fprintf(stderr, "Comanda: cocos0 fit_param [retard]\n");
+    exit(1);
   }
   carrega_parametres(ll_args[1]);
 
-  if (n_args == 3) retard = atoi(ll_args[2]);
-  else retard = 100;
+  if (n_args == 3)
+    retard = atoi(ll_args[2]);
+  else
+    retard = 100;
 
-  rc = win_ini(&n_fil1,&n_col,'+',INVERS);	/* intenta crear taulell */
-  if (rc == 0)		/* si aconsegueix accedir a l'entorn CURSES */
+  rc = win_ini(&n_fil1, &n_col, '+', INVERS); /* intenta crear taulell */
+  if (rc == 0)                                /* si aconsegueix accedir a l'entorn CURSES */
   {
     inicialitza_joc();
-    p = 0; fi1 = 0; fi2 = 0;
-    do			/********** bucle principal del joc **********/
-    {
-	fi1 = mou_menjacocos();
-	p++; if ((p%2)==0)		/* ralentitza fantasma a 2*retard */
-		fi2 = mou_fantasma();
-	win_retard(retard);
-    } while (!fi1 && !fi2);
+    p = 0;
+
+    pthread_create(&tid[0], NULL, mou_menjacocos, NULL);
+    pthread_join(tid[0], NULL);
+    
+
+    
+
     win_fi();
 
-    if (fi1 == -1) printf("S'ha aturat el joc amb tecla RETURN!\n");
-    else { if (fi1) printf("Ha guanyat l'usuari!\n");
-	     else printf("Ha guanyat l'ordinador!\n"); }
+    if (fi1 == -1)
+      printf("S'ha aturat el joc amb tecla RETURN!\n");
+    else
+    {
+      if (fi1)
+        printf("Ha guanyat l'usuari!\n");
+      else
+        printf("Ha guanyat l'ordinador!\n");
+    }
   }
   else
-  {	fprintf(stderr,"Error: no s'ha pogut crear el taulell:\n");
-	switch (rc)
-	{ case -1: fprintf(stderr,"camp de joc ja creat!\n");
-		  break;
-	  case -2: fprintf(stderr,"no s'ha pogut inicialitzar l'entorn de curses!\n");
-		  break;
-	  case -3: fprintf(stderr,"les mides del camp demanades son massa grans!\n");
-		  break;
-	  case -4: fprintf(stderr,"no s'ha pogut crear la finestra!\n");
-		  break;
-	}
-	exit(6);
+  {
+    fprintf(stderr, "Error: no s'ha pogut crear el taulell:\n");
+    switch (rc)
+    {
+    case -1:
+      fprintf(stderr, "camp de joc ja creat!\n");
+      break;
+    case -2:
+      fprintf(stderr, "no s'ha pogut inicialitzar l'entorn de curses!\n");
+      break;
+    case -3:
+      fprintf(stderr, "les mides del camp demanades son massa grans!\n");
+      break;
+    case -4:
+      fprintf(stderr, "no s'ha pogut crear la finestra!\n");
+      break;
+    }
+    exit(6);
   }
-  return(0);
+  return (0);
 }

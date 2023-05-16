@@ -1,3 +1,4 @@
+/*****************************************************************************/
 /*									                                         */
 /*				     cocos1.c				                                 */
 /*									                                         */
@@ -66,7 +67,7 @@
 #include <stdio.h>     /* incloure definicions de funcions estandard */
 #include <stdlib.h>    /* per exit() */
 #include <unistd.h>    /* per getpid() */
-#include "winsuport.h" /* incloure definicions de funcions propies */
+#include "../librerias/winsuport.h"	 /* incloure definicions de funcions propies */
 
 #define MIN_FIL 7 /* definir limits de variables globals */
 #define MAX_FIL 25
@@ -89,9 +90,11 @@ typedef struct
 /*variables globals noves fase 1*/
 int fi1 = 0, fi2 = 0;
 
-pthread_t tid[MAX_THREADS]; /* taula d'identificadors dels threads */
-objecte f_list[F_MAX];      // a la posicio 0 anira el comecocos
-int n_fantasma = 0;             // numero de fantasmes en joc
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; /* crea un sem. Global*/
+pthread_t tid[MAX_THREADS];                        /* taula d'identificadors dels threads */
+objecte f_list[F_MAX];                             // a la posicio 0 anira el comecocos
+
+int n_fantasma = 0; // numero de fantasmes en joc
 int retard;
 /* variables globals */
 int n_fil1, n_col; /* dimensions del camp de joc */
@@ -163,7 +166,7 @@ void carrega_parametres(const char *nom_fit)
   while (!feof(fit) && i < F_MAX)
   {
     fscanf(fit, "%d %d %d %f\n", &f_list[i].f, &f_list[i].c, &f_list[i].d, &f_list[i].r);
-    
+
     fprintf(stderr, "%d %d %d %f\n", f_list[i].f, f_list[i].c, f_list[i].d, f_list[i].r);
 
     if ((f_list[i].f < 1) || (f_list[i].f > n_fil1 - 3) ||
@@ -180,7 +183,7 @@ void carrega_parametres(const char *nom_fit)
     i++;
     n_fantasma++;
   }
-   
+
   fclose(fit); /* fitxer carregat: tot OK! */
   printf("Joc del MenjaCocos\n\tTecles: \'%c\', \'%c\', \'%c\', \'%c\', RETURN-> sortir\n",
          TEC_AMUNT, TEC_AVALL, TEC_DRETA, TEC_ESQUER);
@@ -202,27 +205,26 @@ void inicialitza_joc(void)
       r = -6; /* error: menjacocos sobre pared */
     else
     {
-      
-      for(int i = 1; i<=n_fantasma; i++){
+
+      for (int i = 1; i <= n_fantasma; i++)
+      {
         f_list[i].a = win_quincar(f_list[i].f, f_list[i].c);
-        char num =  i + '0';
+        char num = i + '0';
         win_escricar(f_list[i].f, f_list[i].c, num, NO_INV);
-        
       }
       cocos = 0; /* compta el numero total de cocos */
-        for (i = 0; i < n_fil1 - 1; i++)
-          for (j = 0; j < n_col; j++)
-            if (win_quincar(i, j) == '.')
-              cocos++;
+      for (i = 0; i < n_fil1 - 1; i++)
+        for (j = 0; j < n_col; j++)
+          if (win_quincar(i, j) == '.')
+            cocos++;
 
       win_escricar(f_list[0].f, f_list[0].c, '0', NO_INV);
-     
+
       if (f_list[0].a == '.')
-          cocos--; /* menja primer coco */
+        cocos--; /* menja primer coco */
 
       sprintf(strin, "Cocos: %d", cocos);
       win_escristr(strin);
-
     }
   }
   if (r != 0)
@@ -265,72 +267,84 @@ void *mou_fantasma(void *index)
   int ret;
   int k, vk, nd, vd[3];
 
-  int i = (intptr_t)index;  //posicio del fantasma
+  int i = (intptr_t)index; // posicio del fantasma
 
   ret = 0;
   nd = 0;
-  do{
 
-    for (k = -1; k <= 1; k++) /* provar direccio actual i dir. veines */
+  do
+  {
+    win_retard(retard);
+    pthread_mutex_lock(&mutex);
+    nd = 0; // Reinicializar el número de direcciones posibles
+    for (k = -1; k <= 1; k++)
     {
-      vk = (f_list[i].d + k) % 4; /* direccio veina */
+      vk = (f_list[i].d + k) % 4; // direccio veina
       if (vk < 0)
-        vk += 4;                    /* corregeix negatius */
-      seg.f = f_list[i].f + df[vk]; /* calcular posicio en la nova dir.*/
+        vk += 4;                    // corregeix negatius
+      seg.f = f_list[i].f + df[vk]; // calcular posicio en la nova dir.
       seg.c = f_list[i].c + dc[vk];
-      seg.a = win_quincar(seg.f, seg.c); /* calcular caracter seguent posicio */
+      seg.a = win_quincar(seg.f, seg.c); // calcular caracter seguent posicio
       if ((seg.a == ' ') || (seg.a == '.') || (seg.a == '0'))
       {
-        vd[nd] = vk; /* memoritza com a direccio possible */
+        vd[nd] = vk; // memoritza com a direccio possible
         nd++;
       }
     }
-    if (nd == 0)                           /* si no pot continuar, */
-      f_list[i].d = (f_list[i].d + 2) % 4; /* canvia totalment de sentit */
+    pthread_mutex_unlock(&mutex);
+
+    if (nd == 0)
+    { // si no pot continuar,
+      pthread_mutex_lock(&mutex);
+      f_list[i].d = (f_list[i].d + 2) % 4; // canvia totalment de sentit
+      pthread_mutex_unlock(&mutex);
+    }
     else
     {
-      if (nd == 1)                     /* si nomes pot en una direccio */
-        f_list[i].d = vd[0];           /* li assigna aquesta */
-      else                             /* altrament */
-        f_list[i].d = vd[rand() % nd]; /* segueix una dir. aleatoria */
+      pthread_mutex_lock(&mutex);
+      if (nd == 1)                     // si nomes pot en una direccio
+        f_list[i].d = vd[0];           // li assigna aquesta
+      else                             // altrament
+        f_list[i].d = vd[rand() % nd]; // segueix una dir. aleatoria
 
-      seg.f = f_list[i].f + df[f_list[i].d]; /* calcular seguent posicio final */
+      seg.f = f_list[i].f + df[f_list[i].d]; // calcular seguent posicio final
       seg.c = f_list[i].c + dc[f_list[i].d];
-      seg.a = win_quincar(seg.f, seg.c);                           /* calcular caracter seguent posicio */
-      win_escricar(f_list[i].f, f_list[i].c, f_list[i].a, NO_INV); /* esborra posicio anterior */
+
+      seg.a = win_quincar(seg.f, seg.c);                           // calcular caracter seguent posicio
+      win_escricar(f_list[i].f, f_list[i].c, f_list[i].a, NO_INV); // esborra posicio anterior
       f_list[i].f = seg.f;
       f_list[i].c = seg.c;
-      f_list[i].a = seg.a; 
-      char num =  i + '0';                             /* actualitza posicio */
-      win_escricar(f_list[i].f, f_list[i].c, num, NO_INV); /* redibuixa fantasma */
+      f_list[i].a = seg.a;
+      char num = i + '0';
+      win_escricar(f_list[i].f, f_list[i].c, num, NO_INV); // redibuixa fantasma
+
       if (f_list[i].a == '0')
-        fi2 = 1; /* ha capturat menjacocos */
-      
+        fi2 = 1; // ha capturat menjacocos
+      pthread_mutex_unlock(&mutex);
+
       win_retard(retard);
     }
-
-  }while (!fi1 && !fi2);
-  
+  } while (!fi1 && !fi2);
 
   return 0;
 }
 
-/* funcio per moure el menjacocos una posicio, en funcio de la direccio de   */
-/* moviment actual; retorna -1 si s'ha premut RETURN, 1 si s'ha menjat tots  */
-/* els cocos, i 0 altrament */
 void *mou_menjacocos(void *null)
 {
   char strin[12];
   objecte seg;
   int tec, ret;
-
   ret = 0;
 
-  do {
+  do
+  {
     win_retard(retard);
-    tec = win_gettec();   //hem afegit el retard perque vagi mes lent
+    pthread_mutex_lock(&mutex);
+    tec = win_gettec(); // Hem afegit el retard perquè vagi més lent
+
     if (tec != 0)
-      switch (tec) /* modificar direccio menjacocos segons tecla */
+    {
+      switch (tec)
       {
       case TEC_AMUNT:
         f_list[0].d = 0;
@@ -348,33 +362,45 @@ void *mou_menjacocos(void *null)
         ret = -1;
         break;
       }
-    seg.f = f_list[0].f + df[f_list[0].d]; /* calcular seguent posicio */
+    }
+
+    seg.f = f_list[0].f + df[f_list[0].d]; // Calcular seguent posicio
     seg.c = f_list[0].c + dc[f_list[0].d];
-    seg.a = win_quincar(seg.f, seg.c); /* calcular caracter seguent posicio */
+
+    seg.a = win_quincar(seg.f, seg.c); // Calcular caracter seguent posicio
+    pthread_mutex_unlock(&mutex);
+
     if ((seg.a == ' ') || (seg.a == '.'))
     {
-      win_escricar(f_list[0].f, f_list[0].c, ' ', NO_INV); /* esborra posicio anterior */
+      pthread_mutex_lock(&mutex);
+      win_escricar(f_list[0].f, f_list[0].c, ' ', NO_INV); // Esborra posicio anterior
       f_list[0].f = seg.f;
-      f_list[0].c = seg.c;                                 /* actualitza posicio */
-      win_escricar(f_list[0].f, f_list[0].c, '0', NO_INV); /* redibuixa menjacocos */
+      f_list[0].c = seg.c;                                 // Actualitza posicio
+      win_escricar(f_list[0].f, f_list[0].c, '0', NO_INV); // Redibuixa menjacocos
+      pthread_mutex_unlock(&mutex);
+
       if (seg.a == '.')
       {
+        pthread_mutex_lock(&mutex);
         cocos--;
+        pthread_mutex_unlock(&mutex);
         sprintf(strin, "Cocos: %d", cocos);
+        pthread_mutex_lock(&mutex);
         win_escristr(strin);
+        pthread_mutex_unlock(&mutex);
         if (cocos == 0)
           fi1 = 1;
       }
     }
-  }while(!fi1 && !fi2);
-  
+  } while (!fi1 && !fi2);
+
   return 0;
 }
 
 /* programa principal				    */
 int main(int n_args, const char *ll_args[])
 {
-  int rc, p; /* variables locals */
+int rc, p; /* variables locals */
 
   srand(getpid()); /* inicialitza numeros aleatoris */
 
@@ -396,21 +422,24 @@ int main(int n_args, const char *ll_args[])
     inicialitza_joc();
     p = 0;
 
-    int n_threads= 0;
-        
-    if (pthread_create(&tid[0],NULL,mou_menjacocos, NULL) == 0)
-	    n_threads++;
+    pthread_mutex_init(&mutex, NULL); /* inicialitza el semafor */
+    int n_threads = 0;
 
-    for(int i = 1; i <= n_fantasma; i++){
-      if (pthread_create(&tid[i],NULL,mou_fantasma, (void *)(intptr_t) i) == 0)
+    if (pthread_create(&tid[0], NULL, mou_menjacocos, NULL) == 0)
+      n_threads++;
+
+    for (int i = 1; i <= n_fantasma; i++)
+    {
+      if (pthread_create(&tid[i], NULL, mou_fantasma, (void *)(intptr_t)i) == 0)
         n_threads++;
     }
 
-
-    for (int i = 0; i < n_threads; i++){
-        pthread_join(tid[i], NULL);
+    for (int i = 0; i < n_threads; i++)
+    {
+      pthread_join(tid[i], NULL);
     }
 
+    pthread_mutex_destroy(&mutex); /* destrueix el semafor */
 
     win_fi();
 

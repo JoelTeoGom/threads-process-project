@@ -408,7 +408,7 @@ int main(int n_args, const char *ll_args[])
 
 
     for (int i = 0; i < n_threads; i++){
-        pthread_join(tid[i], NULL);
+        pthread_join(tid[i], NULL);º
     }
 
 

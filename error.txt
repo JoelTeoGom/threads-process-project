@@ -1,4 +1,16 @@
-5 1 3 2.000000
-1 26 2 1.500000
-13 37 0 1.000000
-1 51 1 3.000000
+6 13 3 2.000000
+6 24 1 1.500000
+Este es un mensaje de error.
+Este es un mensaje de error.
+mem:229757 || n_fil:14 || n_col: 39 || indice: 1 || f1.f: 6 || f1.c: 13 ||f1.d: 3 || f1.r: 2.000000 || f1.a:   
+mem:229757 || n_fil:14 || n_col: 39 || indice: 2 || f1.f: 6 || f1.c: 24 ||f1.d: 1 || f1.r: 1.500000 || f1.a:   
+Este es un mensaje de error.
+mem:229759 || n_fil:14 || n_col: 39 || indice: 1 || f1.f: 6 || f1.c: 13 ||f1.d: 3 || f1.r: 2.000000 || f1.a:   
+Este es un mensaje de error.
+mem:229759 || n_fil:14 || n_col: 39 || indice: 2 || f1.f: 6 || f1.c: 24 ||f1.d: 1 || f1.r: 1.500000 || f1.a:   
+Este es un mensaje de error.
+Este es un mensaje de error.
+Este es un mensaje de error.
+mem:229767 || n_fil:14 || n_col: 39 || indice: 1 || f1.f: 6 || f1.c: 13 ||f1.d: 3 || f1.r: 2.000000 || f1.a:   
+Este es un mensaje de error.
+mem:229767 || n_fil:14 || n_col: 39 || indice: 2 || f1.f: 6 || f1.c: 24 ||f1.d: 1 || f1.r: 1.500000 || f1.a:   

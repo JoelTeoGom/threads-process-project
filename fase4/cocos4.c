@@ -75,6 +75,8 @@
 
 #include "../librerias/winsuport2.h"	 /* incloure definicions de funcions propies */
 #include "../librerias/memoria.h"
+#include "../librerias/semafor.h"
+#include "../librerias/missatge.h"
 
 #define MIN_FIL 7 /* definir limits de variables globals */
 #define MAX_FIL 25
@@ -107,6 +109,9 @@ int *pt_camp, id_camp, mida_camp;   //camp
 pid_t tpid[MAX_PROCS]; /* taula d'identificadors dels processos fill */
 
 int *p_fi, id_fi;   //final
+
+/*fase 4*/
+int id_semafor;
 
 ////////////////////////////////////////777
 int n_fantasma = 0; // numero de fantasmes en joc
@@ -283,76 +288,78 @@ void inicialitza_joc(void)
 
 
 
-void *mou_menjacocos(void *null)
-{
+void *mou_menjacocos(void *null) {
   char strin[12];
   objecte seg;
   int tec, ret;
   ret = 0;
 
-  do
-  {
+  do {
     win_retard(retard);
-    tec = win_gettec(); // Hem afegit el retard perquè vagi més lent
+    waitS(id_semafor);
+    tec = win_gettec();  
 
-    if (tec != 0)
-    {
-      switch (tec)
-      {
-      case TEC_AMUNT:
-        f_list[0].d = 0;
-        break;
-      case TEC_ESQUER:
-        f_list[0].d = 1;
-        break;
-      case TEC_AVALL:
-        f_list[0].d = 2;
-        break;
-      case TEC_DRETA:
-        f_list[0].d = 3;
-        break;
-      case TEC_RETURN:
-        ret = -1;
-        break;
+    if (tec != 0) {
+      switch (tec) {
+        case TEC_AMUNT:
+          f_list[0].d = 0;
+          break;
+        case TEC_ESQUER:
+          f_list[0].d = 1;
+          break;
+        case TEC_AVALL:
+          f_list[0].d = 2;
+          break;
+        case TEC_DRETA:
+          f_list[0].d = 3;
+          break;
+        case TEC_RETURN:
+          ret = -1;
+          break;
       }
     }
 
-    seg.f = f_list[0].f + df[f_list[0].d]; // Calcular seguent posicio
+    seg.f = f_list[0].f + df[f_list[0].d];  // Calcular seguent posicio
     seg.c = f_list[0].c + dc[f_list[0].d];
-
-    seg.a = win_quincar(seg.f, seg.c); // Calcular caracter seguent posicio
-
-    if ((seg.a == ' ') || (seg.a == '.'))
-    {
-      win_escricar(f_list[0].f, f_list[0].c, ' ', NO_INV); // Esborra posicio anterior
+    seg.a = win_quincar(seg.f, seg.c);  // Calcular caracter seguent posicio
+    signalS(id_semafor);
+    
+    waitS(id_semafor);
+    if ((seg.a == ' ') || (seg.a == '.')) {
+      
+      win_escricar(f_list[0].f, f_list[0].c, ' ', NO_INV);  // Esborra posicio anterior
+      
       f_list[0].f = seg.f;
-      f_list[0].c = seg.c;                                 // Actualitza posicio
-      win_escricar(f_list[0].f, f_list[0].c, '0', NO_INV); // Redibuixa menjacocos
+      f_list[0].c = seg.c;  // Actualitza posicio
+      
+      win_escricar(f_list[0].f, f_list[0].c, '0', NO_INV);  // Redibuixa menjacocos
 
-      if (seg.a == '.')
-      {
+      if (seg.a == '.') {
+        
         cocos--;
         sprintf(strin, "Cocos: %d", cocos);
         win_escristr(strin);
-
+        
         if (cocos == 0)
           fi1 = 1;
       }
-    }        
-    
+      
+    }
+    signalS(id_semafor);
     win_update();
   } while (!fi1 && !(*p_fi));
 
   return 0;
 }
 
+
 /* programa principal				    */
 int main(int n_args, const char *ll_args[])
 {
-  char a1[20], a2[5], a3[5], a4[100], a5[100], a6[100], a7[100], a8[10], a9[100], a10[100], a11[10];
-
+  char a1[200], a2[10], a3[10], a4[100], a5[100], a6[100],a7[100], a8[10], a9[100], a10[100], a11[10], a12[10];
+  int i,n,t,t_total;
   int rc, p; /* variables locals */
-  int i;
+ 
   srand(getpid()); /* inicialitza numeros aleatoris */
 
   if ((n_args != 2) && (n_args != 3))
@@ -376,7 +383,13 @@ int main(int n_args, const char *ll_args[])
   id_fi = ini_mem(sizeof(int));
   p_fi = map_mem(id_fi);
   *p_fi = 0;
+   
 
+  id_semafor = ini_sem(1);      //Inicialitzem el semàfor
+  sprintf(a12, "%d", id_semafor);
+
+  fprintf(file, "id_semafor: %d.\n", id_semafor);
+ //char a; 
   if (mida_camp > 0)                                /* si aconsegueix accedir a l'entorn CURSES */
   {
     inicialitza_joc();
@@ -390,21 +403,26 @@ int main(int n_args, const char *ll_args[])
     sprintf(a3, "%d", n_col);
     sprintf(a4, "%d", id_fi);
     sprintf(a11, "%d", retard);
+   
 
-    for(i=1; i <= n_fantasma; i++){
-      tpid[i] = fork();
-      if (tpid[i] == (pid_t) 0){
+
+    for ( i = 1; i <= n_fantasma; i++)
+    {
+      tpid[i] = fork(); /* crea un nou proces */
+      if (tpid[i] == (pid_t) 0) /* branca del fill */
+      {
         sprintf(a5, "%d", f_list[i].f); //int f;  
         sprintf(a6, "%d", f_list[i].c);  //int c;   
         sprintf(a7, "%d", f_list[i].d);  //int d;  
         sprintf(a8, "%f", f_list[i].r); //float r; 
         sprintf(a9, "%c", f_list[i].a); //char a;  
         sprintf(a10, "%d", i);
-        execlp("./fase3/fantasma3", "fase3/fantasma3", a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, (char *) 0);
+
+        execlp("./fase4/fantasma4", "fase4/fantasma4", a1, a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12, (char *)0);
         exit(0);
       }
+        
     }
-
     pthread_join(tid[0], NULL);
 
     while (!(*p_fi) && !fi1){
@@ -417,6 +435,7 @@ int main(int n_args, const char *ll_args[])
 
     elim_mem(id_fi);
     elim_mem(id_camp);
+    elim_sem(id_semafor);
 
     if (fi1 == -1)
       printf("S'ha aturat el joc amb tecla RETURN!\n");

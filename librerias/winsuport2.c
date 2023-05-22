@@ -94,7 +94,7 @@ void win_set(void *p_mem, int n_fil, int n_col)
 /*	a la funcio win_ini(), tot i que s'emmagatzemen a les		*/
 /*	variables globals Nfil,Ncol: aquestes variables s'inicialitzen	*/
 /*	a la crida win_ini() que fa el proces pare i, per tant, el seu	*/
-/*	valor NO es traspassa als processos fill. Per aix˜, els		*/
+/*	valor NO es traspassa als processos fill. Per aixï¿½, els		*/
 /*	processos fill hauran d'invocar la win_set() especificant num.	*/
 /*	de files i de columnes del camp de joc (que poden rebre a	*/
 /*	traves d'arguments de programa), per tal que la copia de Nfil i	*/
@@ -275,4 +275,3 @@ int win_carregatauler(char *nom_fitxer, int n_f, int n_c, char creq)
   else error = -5;              /* error finestra no oberta */
   return(error);                /* retorna 0 si no hi ha error */
 }
-
